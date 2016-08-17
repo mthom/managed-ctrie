@@ -1,0 +1,6 @@
+[submodule "unmanaged-ctrie"]
+	path = unmanaged-ctrie
+	url = https://github.com/mthom/unmanaged-ctrie
+[submodule "on-the-fly-gc"]
+	path = on-the-fly-gc
+	url = https://github.com/mthom/on-the-fly-gc

@@ -1,0 +1,8 @@
+#+TITLE:         Managed Ctries
+#+AUTHOR:        Mark Thom
+#+EMAIL:         markjordanthom@gmail.com
+
+This demo program combines the unmanaged ctries of
+https://github.com/mthom/unmanaged-ctrie with the concurrent garbage
+collector of https://github.com/mthom/on-the-fly-gc to produce memory
+managed concurrent hash tries.

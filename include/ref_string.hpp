@@ -1,5 +1,5 @@
-#ifndef SIMPLE_STRING_HPP_INCLUDED
-#define SIMPLE_STRING_HPP_INCLUDED
+#ifndef REF_STRING_HPP_INCLUDED
+#define REF_STRING_HPP_INCLUDED
 
 #include <cstring>
 #include <ostream>

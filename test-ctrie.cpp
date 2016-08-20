@@ -4,7 +4,7 @@
 #include <string>
 #include <type_traits>
 
-#include "vcms_ctrie.hpp"
+#include "otf_ctrie.hpp"
 #include "gtest/gtest.h"
 #include "test-ctrie.hpp"
 
@@ -208,6 +208,10 @@ TEST_F(ctrie_tests, Snapshots) {
 int main(int argc, char** argv)
 {
    gc::initialize();
-   ::testing::InitGoogleTest(&argc, argv);  
-   return RUN_ALL_TESTS();
+   ::testing::InitGoogleTest(&argc, argv);
+   
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+
+   return RUN_ALL_TESTS();   
 }

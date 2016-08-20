@@ -3,7 +3,7 @@
 
 #include "gtest/gtest.h"
 #include "gc.hpp"
-#include "vcms_ctrie.hpp"
+#include "otf_ctrie.hpp"
 
 using namespace otf_gc;
 

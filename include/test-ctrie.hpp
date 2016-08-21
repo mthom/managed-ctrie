@@ -1,6 +1,8 @@
 #ifndef TEST_CTRIE_HPP_INCLUDED
 #define TEST_CTRIE_HPP_INCLUDED
 
+#include <future>
+
 #include "gtest/gtest.h"
 #include "gc.hpp"
 #include "otf_ctrie.hpp"
@@ -10,12 +12,12 @@ using namespace otf_gc;
 class ctrie_tests : public ::testing::Test
 {
 protected:
-  std::thread collector_thread;
+  std::future<void> collector_thread;
   otf_ctrie ct;
   
   virtual void SetUp()
   {
-    collector_thread = std::thread([]() {
+    collector_thread = std::async([]() {
 	gc::collector->template run<otf_ctrie::otf_ctrie_policy, otf_ctrie_tracer>();
       });
     
@@ -30,10 +32,7 @@ protected:
   {
     gc::collector->stop();
 
-    std::this_thread::sleep_for(std::chrono::microseconds(5));
-    
-    if(collector_thread.joinable())
-      collector_thread.join();
+    collector_thread.get();
   }
 };
 #endif

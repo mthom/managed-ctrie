@@ -209,9 +209,6 @@ int main(int argc, char** argv)
 {
    gc::initialize();
    ::testing::InitGoogleTest(&argc, argv);
-   
-   RUN_ALL_TESTS();
-   RUN_ALL_TESTS();
-
+      
    return RUN_ALL_TESTS();   
 }

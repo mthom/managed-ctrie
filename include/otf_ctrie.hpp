@@ -121,13 +121,19 @@ class branch_vector_allocator<otf_ctrie_write_barrier<T>>
 
   branch_vector_allocator() = default;
 
-  value_type* allocate(std::size_t n)
+  value_type* allocate(std::size_t sz)
   {
     using namespace impl_details;
 
     underlying_header_t h =
-      (n << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::BV_t);
-    void* ptr = mt()->allocate(n * sizeof(value_type), h, 0);
+      (sz << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::BV_t);
+    void* ptr = mt()->allocate(sz * sizeof(value_type), h, 0);
+
+    std::memset(ptr, 0, sz * sizeof(value_type));
+    
+    std::fill(reinterpret_cast<value_type*>(ptr),
+	      reinterpret_cast<value_type*>(reinterpret_cast<size_t>(ptr) + sz * sizeof(value_type)),
+	      otf_ctrie_write_barrier<T>());
     
     return reinterpret_cast<value_type*>(ptr);
   }
@@ -255,24 +261,22 @@ private:
   static list<void*> trace_branch_vector(void* ptr)
   {
     using namespace impl_details;
-    using branch_t = branch<ctrie_string,
-			    int,
-			    local_hash<ctrie_string>,
-			    otf_ctrie_allocator,
-			    otf_ctrie_write_barrier>*;					 
-
+    using branch_t = otf_ctrie_write_barrier<branch<ctrie_string,
+						    int,
+						    local_hash<ctrie_string>,
+						    otf_ctrie_allocator,
+						    otf_ctrie_write_barrier>*>;					 
+    size_t hp = reinterpret_cast<size_t>(ptr) - header_size;
+    size_t h  = reinterpret_cast<header_t*>(hp)->load(std::memory_order_relaxed);
+    size_t n  = h >> (color_bits + tag_bits);
     
     list<void*> result;
-      
-    std::ptrdiff_t hp = reinterpret_cast<std::ptrdiff_t>(ptr) - header_size;
-    header_t& header  = *reinterpret_cast<header_t*>(hp);
-      
-    underlying_header_t n = header.load(std::memory_order_relaxed) >> (color_bits + tag_bits);
-    
-    uint64_t bpl = reinterpret_cast<uint64_t>(ptr);
-    
-    for(auto bp = bpl; bp < bpl + n * sizeof(branch_t); bp += sizeof(branch_t)) {
-      if((*reinterpret_cast<branch_t*>(bp)))
+
+    size_t bpl = reinterpret_cast<size_t>(ptr);
+
+    for(auto bp = bpl; bp < bpl + n * sizeof(branch_t); bp += sizeof(branch_t))
+    {
+      if((*reinterpret_cast<branch_t*>(bp)).get())
 	result.push_front((*reinterpret_cast<branch_t*>(bp))->derived_ptr());
     }
 

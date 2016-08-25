@@ -78,7 +78,7 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
     for(unsigned lenn = len; lenn < 1000; lenn += 10)
       for(char c = 'a'; c <= 'z'; ++c) {
 	ctrie_string key(lenn, c);
-	ASSERT_NE(ct.lookup(key), nullptr);// << "failed to find " << key << " in ct.lookup" << endl;
+	ASSERT_NE(ct.lookup(key), nullptr);
 	ct.remove(key);
       }
   };
@@ -209,6 +209,18 @@ int main(int argc, char** argv)
 {
    gc::initialize();
    ::testing::InitGoogleTest(&argc, argv);
-      
+
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   
    return RUN_ALL_TESTS();   
 }

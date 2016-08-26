@@ -207,7 +207,11 @@ TEST_F(ctrie_tests, Snapshots) {
 
 int main(int argc, char** argv)
 {
-   gc::initialize();
+   gc::initialize();   
+   std::future<void> collector_thread = std::async([]() {
+       gc::collector->template run<otf_ctrie::otf_ctrie_policy, otf_ctrie_tracer>();
+     });
+
    ::testing::InitGoogleTest(&argc, argv);
 
    RUN_ALL_TESTS();
@@ -222,5 +226,11 @@ int main(int argc, char** argv)
    RUN_ALL_TESTS();
    RUN_ALL_TESTS();
    
-   return RUN_ALL_TESTS();   
+   auto result = RUN_ALL_TESTS();
+
+   mt().reset();
+   gc::collector->stop();
+
+   collector_thread.get();
+   return result;
 }

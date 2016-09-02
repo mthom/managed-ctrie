@@ -16,7 +16,7 @@ TEST_F(ctrie_tests, Contains64SingletonStringsOfEachChar)
   for(char c = 'a'; c <= 'z'; ++c) {
     for(int i = 1; i < 65; ++i) {
       auto ptr = ct.lookup(ctrie_string(i, c));
-      
+
       ASSERT_NE(ptr, nullptr);
       ASSERT_EQ(*ptr, i);
     }
@@ -26,10 +26,10 @@ TEST_F(ctrie_tests, Contains64SingletonStringsOfEachChar)
 TEST_F(ctrie_tests, RemoveAndCantBeFound)
 {
   const int* ptr = ct.remove("aaaaa");
-  
+
   ASSERT_TRUE(ptr != nullptr);
   ASSERT_EQ(*ptr, 5);
-  
+
   ct.insert("aaaaa", 5);
   ASSERT_NE(ct.lookup("aaaaa"), nullptr);
   ASSERT_EQ(*ct.lookup("aaaaa"), 5);
@@ -44,7 +44,7 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
       }
     }
   };
-  
+
   std::vector<std::future<void>> futures;
   futures.reserve(std::thread::hardware_concurrency());
 
@@ -53,12 +53,12 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
 
   for(auto& future : futures)
     future.get();
-  
+
   for(unsigned i = 0; i < std::thread::hardware_concurrency(); ++i) {
     for(unsigned lenn = 65 + i; lenn < 1000; lenn += 10) {
       for(char c = 'a'; c <= 'z'; ++c) {
 	const int* ptr = ct.lookup(ctrie_string(lenn, c));
-	
+
 	ASSERT_NE(ptr, nullptr);
 	ASSERT_EQ(*ptr, lenn);
       }
@@ -68,7 +68,7 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
   for(char c = 'a'; c <= 'z'; ++c) {
     for(unsigned i = 1; i < 65; ++i) {
       const int* ptr = ct.lookup(ctrie_string(i, c));
-      
+
       ASSERT_NE(ptr, nullptr);
       ASSERT_EQ(*ptr, i);
     }
@@ -82,9 +82,9 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
 	ct.remove(key);
       }
   };
-  
+
   futures.clear();
-  
+
   for(unsigned i = 0; i < std::thread::hardware_concurrency(); ++i)
     futures.push_back(std::async(length_remover, 65 + i));
 
@@ -100,7 +100,7 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
   }
 
   for(unsigned i = 0; i < std::thread::hardware_concurrency(); ++i) {
-    for(unsigned lenn = 65 + i; lenn < 1000; lenn += 10) {    
+    for(unsigned lenn = 65 + i; lenn < 1000; lenn += 10) {
       for(char c='a'; c <= 'z'; ++c) {
 	ASSERT_EQ(ct.lookup(ctrie_string(lenn, c)), nullptr);
       }
@@ -108,7 +108,7 @@ TEST_F(ctrie_tests, ConcurrentInsertsAndRemoves)
   }
 }
 
-    
+
 TEST_F(ctrie_tests, InterleavedConcurrentInsertsLookupsAndRemoves)
 {
   auto inserter_remover = [this](unsigned mul) {
@@ -129,7 +129,7 @@ TEST_F(ctrie_tests, InterleavedConcurrentInsertsLookupsAndRemoves)
 
   for(unsigned i = 1; i <= std::thread::hardware_concurrency(); ++i)
     futures.push_back(std::async(inserter_remover, i));
-  
+
   for(auto& future : futures)
     future.get();
 
@@ -180,34 +180,35 @@ TEST_F(ctrie_tests, Snapshots) {
       list<void*> ss_and_ct_roots = ss.ct_callback();
       ss_and_ct_roots.append(ct.ct_callback());
 
-      return ss_and_ct_roots;      
+      return ss_and_ct_roots;
     });
 
   for(char c = 'a'; c <= 'z'; ++c) {
     for(int i = 1; i < 65; ++i) {
       auto ptr = ss.lookup(ctrie_string(i, c));
-      
+
       ASSERT_NE(ptr, nullptr);
       ASSERT_EQ(*ptr, i);
     }
   }
-  
-  for(unsigned lenn = 65; lenn < 2500; lenn += 10) 
+
+  for(unsigned lenn = 65; lenn < 2500; lenn += 10)
     for(char c = 'a'; c <= 'z'; ++c) {
       ct.insert(ctrie_string(lenn, c), lenn);
     }
 
-  for(unsigned lenn = 65; lenn < 2500; lenn += 10) 
+  for(unsigned lenn = 65; lenn < 2500; lenn += 10)
     for(char c = 'a'; c <= 'z'; ++c) {
       auto ptr = ss.lookup(ctrie_string(lenn, c));
-      
+
       ASSERT_EQ(ptr, nullptr);
-    }  
+    }
 }
 
 int main(int argc, char** argv)
 {
-   gc::initialize();   
+   gc::initialize();
+
    std::future<void> collector_thread = std::async([]() {
        gc::collector->template run<otf_ctrie::otf_ctrie_policy, otf_ctrie_tracer>();
      });
@@ -225,7 +226,21 @@ int main(int argc, char** argv)
    RUN_ALL_TESTS();
    RUN_ALL_TESTS();
    RUN_ALL_TESTS();
-   
+
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+   RUN_ALL_TESTS();
+
+   RUN_ALL_TESTS();
+
    auto result = RUN_ALL_TESTS();
 
    mt().reset();

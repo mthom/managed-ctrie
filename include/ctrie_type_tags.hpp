@@ -18,13 +18,14 @@ enum class ctrie_internal_types : uint8_t
   SV_t, // ptr to string vector area.
   Plnode_t, // ptr to plist node.
   Rdnode_t, // ptr to rdcss_descriptor.
+  Misc_t // ptr to a miscellaneous type, likely a gen internal ptr.
 };
 
 template <class>
 struct ctrie_type_info
 {
-  static const ctrie_internal_types header_value;
-  static const size_t num_log_ptrs;
+  static const ctrie_internal_types header_value = ctrie_internal_types::Misc_t;
+  static const size_t num_log_ptrs = 0;
 };
   
 template <typename K,

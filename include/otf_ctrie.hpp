@@ -289,7 +289,7 @@ private:
     
     return result;
   }
-
+  
   static list<void*> trace_rdcss_desc(void* ptr)
   {    
     using rdcss_desc = rdcss_descriptor<ctrie_string,
@@ -314,6 +314,11 @@ private:
     return result; 
   }
   
+  static list<void*> trace_nothing(void*)
+  {
+    return {};
+  }
+  
   static const std::function<list<void*>(void*)> tracer_table[];  
 public:
   static size_t num_log_ptrs(impl_details::underlying_header_t h)
@@ -330,7 +335,7 @@ public:
       0, //branch
       0, //plist_node<snode>
       0, //char
-      1, //rdcss_descriptor
+      1 //rdcss_descriptor
     };
     
     return log_ptr_num_table[(h & header_tag_mask) >> color_bits];
@@ -437,6 +442,8 @@ public:
       t_ptr->~T();
     }
 
+    static void destroy_nothing(void*) {}
+    
     static void destroy_vector(void*)
     {}
     

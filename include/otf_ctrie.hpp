@@ -19,13 +19,11 @@
 using namespace kl_ctrie;
 using namespace otf_gc;
 
-std::unique_ptr<gc> gc::collector;
-
 template <typename T>
 struct local_hash
 {
   using result_type = size_t;
-    
+
   static void hash_combine(size_t& seed, char c) {
     seed ^= c + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
@@ -39,39 +37,14 @@ struct local_hash
   }
 };
 
-inline std::unique_ptr<gc::registered_mutator>& mt()
+class otf_ctrie_policy;
+class otf_ctrie_tracer;
+
+inline std::unique_ptr<typename gc::registered_mutator>& mt()
 {
   static thread_local std::unique_ptr<gc::registered_mutator> mt = gc::get_mutator();
   return mt;
 }
-
-template <typename T>
-class otf_ctrie_allocator
-{
-public:
-  using value_type = T;
-
-  otf_ctrie_allocator() = default;
-  
-  template <class U>
-  otf_ctrie_allocator(const otf_ctrie_allocator<U>&) {}
-
-  inline value_type* allocate(size_t n)
-  {    
-    void* ptr = mt()->allocate(n * sizeof(T),
-			       static_cast<impl_details::underlying_header_t>(ctrie_type_info<T>::header_value),
-			       ctrie_type_info<T>::num_log_ptrs);
-
-    return reinterpret_cast<T*>(ptr);
-  }
-
-  inline void deallocate(T*, size_t) {}
-};
-
-class otf_ctrie_tracer;
-
-template <typename T>
-using otf_ctrie_write_barrier = otf_write_barrier<mt, otf_ctrie_tracer, T>;
 
 class string_allocator
 {
@@ -86,7 +59,7 @@ class string_allocator
   static char* shallow_copy_ref_string(char* data)
   {
     using namespace impl_details;
-    
+
     header_t* hp = reinterpret_cast<header_t*>(data - header_size);
     auto h = hp->load(std::memory_order_relaxed);
 
@@ -95,7 +68,7 @@ class string_allocator
 
     return data;
   }
-  
+
   value_type* allocate(std::size_t n)
   {
     using namespace impl_details;
@@ -104,7 +77,7 @@ class string_allocator
       (n << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::SV_t);
 
     void* ptr = mt()->allocate(n * sizeof(value_type), h, 0);
-    
+
     return reinterpret_cast<value_type*>(ptr);
   }
 
@@ -112,6 +85,33 @@ class string_allocator
 };
 
 using ctrie_string = ref_string<string_allocator>;
+
+
+template <typename T>
+class otf_ctrie_allocator
+{
+public:
+  using value_type = T;
+
+  otf_ctrie_allocator() = default;
+
+  template <class U>
+  otf_ctrie_allocator(const otf_ctrie_allocator<U>&) {}
+
+  inline value_type* allocate(size_t n)
+  {
+    void* ptr = mt()->allocate(n * sizeof(T),
+			       static_cast<impl_details::underlying_header_t>(ctrie_type_info<T>::header_value),
+			       ctrie_type_info<T>::num_log_ptrs);
+
+    return reinterpret_cast<T*>(ptr);
+  }
+
+  inline void deallocate(T*, size_t) {}
+};
+
+template <typename T>
+using otf_ctrie_write_barrier = otf_write_barrier<mt, otf_ctrie_tracer, T>;
 
 template <typename T>
 class branch_vector_allocator<otf_ctrie_write_barrier<T>>
@@ -128,24 +128,58 @@ class branch_vector_allocator<otf_ctrie_write_barrier<T>>
     underlying_header_t h =
       (sz << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::BV_t);
     void* ptr = mt()->allocate(sz * sizeof(value_type), h, 0);
-    
+
     return reinterpret_cast<value_type*>(ptr);
   }
 
   void deallocate(value_type*, size_t) {}
 };
 
+class otf_ctrie_policy
+{
+private:
+  template <typename T>
+  static void destroy_type(void* ptr)
+  {
+    T* t_ptr = reinterpret_cast<T*>(ptr);
+    t_ptr->~T();
+  }
+
+  static void destroy_nothing(void*) {}
+    
+  static void destroy_vector(void*)
+  {}
+    
+  static const std::function<void(void*)> destructor_table[];  
+public:    
+  using roots_type = void*;
+    
+  using mutator_type = kl_ctrie::ctrie<ctrie_string,
+				       int,
+				       local_hash<ctrie_string>,
+				       otf_ctrie_allocator,
+				       otf_ctrie_write_barrier>;
+
+  inline static void destroy(impl_details::underlying_header_t h, impl_details::header_t* ptr)
+  {
+    using namespace impl_details;
+      
+    std::ptrdiff_t d = reinterpret_cast<std::ptrdiff_t>(ptr) + header_size;
+    destructor_table[(h & header_tag_mask) >> color_bits](reinterpret_cast<void*>(d));
+  }    
+};
+
 class otf_ctrie_tracer
-{  
-private:    
+{
+private:
   static list<void*> trace_inode(void* ptr)
-  {    
+  {
     auto& in = *reinterpret_cast<inode<ctrie_string,
 				       int,
 				       local_hash<ctrie_string>,
 				       otf_ctrie_allocator,
 				       otf_ctrie_write_barrier>*>(ptr);
-      
+
     auto mn = in.main.load(std::memory_order_relaxed);
 
     if(mn) {
@@ -157,15 +191,15 @@ private:
   static list<void*> trace_cnode(void* ptr)
   {
     using namespace impl_details;
-    
+
     auto cn = reinterpret_cast<cnode<ctrie_string,
 				     int,
 				     local_hash<ctrie_string>,
 				     otf_ctrie_allocator,
 				     otf_ctrie_write_barrier>*>(ptr);
-    
+
     list<void*> result;
-    
+
     if(auto cpn = cn->prev.load(std::memory_order_relaxed))
       result.push_front(cpn->derived_ptr());
 
@@ -175,7 +209,7 @@ private:
     for(auto& p : cn->arr)
       if(p.get())
 	result.push_front(reinterpret_cast<void*>(p->derived_ptr()));
-    
+
     return result;
   }
 
@@ -202,44 +236,44 @@ private:
 				       otf_ctrie_write_barrier>*>(ptr);
 
     list<void*> result;
-    
+
     if(auto tpn = tn.prev.load(std::memory_order_relaxed))
       result.push_front(tpn->derived_ptr());
 
     if(tn.sn)
       result.push_front(const_cast<void*>(reinterpret_cast<const void*>(tn.sn)));
-    
+
     return result;
   }
 
   static list<void*> trace_lnode(void* ptr)
-  {      
+  {
     using internal_pl_type = kl_ctrie::snode<ctrie_string,
 					     int,
 					     local_hash<ctrie_string>,
 					     otf_ctrie_allocator,
 					     otf_ctrie_write_barrier>*;
-      
+
     using pl_type = plist_node<internal_pl_type>;
-    
+
     auto& ln = *reinterpret_cast<lnode<ctrie_string,
 				       int,
 				       local_hash<ctrie_string>,
 				       otf_ctrie_allocator,
 				       otf_ctrie_write_barrier>*>(ptr);
 
-    const auto& n = *reinterpret_cast<const std::atomic<pl_type*>*>(&ln.contents);      
+    const auto& n = *reinterpret_cast<const std::atomic<pl_type*>*>(&ln.contents);
     const void* v = reinterpret_cast<const void*>(n.load(std::memory_order_relaxed));
 
     list<void*> result;
-    
+
     if(auto lpn = ln.prev.load(std::memory_order_relaxed))
       result.push_front(lpn->derived_ptr());
 
     if(v)
       result.push_front(const_cast<void*>(v));
-    
-    return result;    
+
+    return result;
   }
 
   static list<void*> trace_failure(void* ptr)
@@ -259,7 +293,7 @@ private:
   static list<void*> trace_branch_vector(void*)
   {
     return {};
-  } 
+  }
 
   static list<void*> trace_string(void*)
   {
@@ -273,7 +307,7 @@ private:
 					     local_hash<ctrie_string>,
 					     otf_ctrie_allocator,
 					     otf_ctrie_write_barrier>*;
-    
+
     using pl_type = const plist_node<internal_pl_type>;
 
     const auto& n  = *reinterpret_cast<pl_type*>(ptr);
@@ -286,12 +320,12 @@ private:
 
     if(nd)
       result.push_front(const_cast<void*>(reinterpret_cast<const void*>(nd)));
-    
+
     return result;
   }
-  
+
   static list<void*> trace_rdcss_desc(void* ptr)
-  {    
+  {
     using rdcss_desc = rdcss_descriptor<ctrie_string,
 					int,
 					local_hash<ctrie_string>,
@@ -304,27 +338,27 @@ private:
 
     if(rd_ptr->ov.get())
       result.push_front(rd_ptr->ov.get()->derived_ptr());
-    
+
     if(rd_ptr->expected_main.get())
       result.push_front(rd_ptr->expected_main.get()->derived_ptr());
 
     if(rd_ptr->nv.get())
       result.push_front(rd_ptr->nv.get()->derived_ptr());
-    
-    return result; 
+
+    return result;
   }
-  
+
   static list<void*> trace_nothing(void*)
   {
     return {};
   }
-  
-  static const std::function<list<void*>(void*)> tracer_table[];  
+
+  static const std::function<list<void*>(void*)> tracer_table[];
 public:
   static size_t num_log_ptrs(impl_details::underlying_header_t h)
   {
     using namespace impl_details;
-    
+
     static const size_t log_ptr_num_table[] = {
       1, //Inode
       1, //Cnode
@@ -337,7 +371,7 @@ public:
       0, //char
       1 //rdcss_descriptor
     };
-    
+
     return log_ptr_num_table[(h & header_tag_mask) >> color_bits];
   }
 
@@ -345,7 +379,7 @@ public:
   {
     using namespace impl_details;
     using namespace kl_ctrie;
-    
+
     static const size_t sizes_table[] = {
       sizeof(inode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>), //Inode
       sizeof(cnode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>), //Cnode
@@ -355,16 +389,16 @@ public:
       sizeof(failure<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>), //Failure
       0,
       0,
-      sizeof(plist_node<snode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>), //plist_node<snode>      
+      sizeof(plist_node<snode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>), //plist_node<snode>
       sizeof(rdcss_descriptor<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>), //rdcss_descriptor
     };
 
     return sizes_table[(h & header_tag_mask) >> color_bits];
   }
-  
+
   static list<void*> get_derived_ptrs(impl_details::underlying_header_t h, void* root)
   {
-    using namespace impl_details;      
+    using namespace impl_details;
     std::ptrdiff_t d = reinterpret_cast<std::ptrdiff_t>(root);
     return tracer_table[(h & header_tag_mask) >> color_bits](reinterpret_cast<void*>(d));
   }
@@ -373,15 +407,15 @@ public:
   {
     using namespace impl_details;
     auto type_tag = (h & header_tag_mask) >> color_bits;
-    
+
     if(type_tag == static_cast<uint8_t>(ctrie_internal_types::BV_t)) {
       using value_type = branch<ctrie_string,
 				int,
 				local_hash<ctrie_string>,
 				otf_ctrie_allocator,
 				otf_ctrie_write_barrier>*;
-      
-      size_t n = h >> (color_bits + tag_bits);      
+
+      size_t n = h >> (color_bits + tag_bits);
       void* buf = aligned_alloc(alignof(header_t), header_size + n * sizeof(value_type));
 
       new(reinterpret_cast<header_t*>(buf)) header_t(h);
@@ -389,7 +423,7 @@ public:
       std::memcpy(reinterpret_cast<void*>(reinterpret_cast<std::ptrdiff_t>(buf) + header_size),
 		  root,
 		  n * sizeof(value_type));
-      
+
       return reinterpret_cast<void*>(reinterpret_cast<std::ptrdiff_t>(buf) + header_size);
     } else if(type_tag == static_cast<uint8_t>(ctrie_internal_types::SV_t)) {
       return nullptr;
@@ -401,7 +435,7 @@ public:
     std::memcpy(reinterpret_cast<void*>(reinterpret_cast<std::ptrdiff_t>(buf) + header_size),
 		root,
 		size_of(h));
-    
+
     return reinterpret_cast<void*>(reinterpret_cast<std::ptrdiff_t>(buf) + header_size);
   }
 
@@ -410,13 +444,13 @@ public:
   {
     return copy_obj(h, root);
   }
-  
+
   inline static list<void*>
   derived_ptrs_of_obj_segment(impl_details::underlying_header_t h, void* root, size_t)
   {
     return get_derived_ptrs(h, root);
   }
-    
+
   inline static impl_details::log_ptr_t*
   log_ptr(impl_details::underlying_header_t h, void* parent, size_t)
   {
@@ -424,50 +458,18 @@ public:
 
     size_t offset = num_log_ptrs(h);
     auto pd = reinterpret_cast<std::ptrdiff_t>(parent) - header_size - offset * log_ptr_size;
-      
+
     return reinterpret_cast<log_ptr_t*>(pd);
   }
 };
 
+std::unique_ptr<gc> gc::collector;
+
 class otf_ctrie
 {
 public:
-  class otf_ctrie_policy
-  {
-  private:
-    template <typename T>
-    static void destroy_type(void* ptr)
-    {
-      T* t_ptr = reinterpret_cast<T*>(ptr);
-      t_ptr->~T();
-    }
-
-    static void destroy_nothing(void*) {}
-    
-    static void destroy_vector(void*)
-    {}
-    
-    static const std::function<void(void*)> destructor_table[];  
-  public:    
-    using roots_type = void*;
-    
-    using mutator_type = kl_ctrie::ctrie<ctrie_string,
-					 int,
-					 local_hash<ctrie_string>,
-					 otf_ctrie_allocator,
-					 otf_ctrie_write_barrier>;
-
-    inline static void destroy(impl_details::underlying_header_t h, impl_details::header_t* ptr)
-    {
-      using namespace impl_details;
-      
-      std::ptrdiff_t d = reinterpret_cast<std::ptrdiff_t>(ptr) + header_size;
-      destructor_table[(h & header_tag_mask) >> color_bits](reinterpret_cast<void*>(d));
-    }    
-  };               
-
   inline void poll_for_sync()
-  {    
+  {
     mt()->poll_for_sync();
   }
 
@@ -480,35 +482,35 @@ public:
   inst_ctrie ct;
 
   otf_ctrie(inst_ctrie ct_) : ct(ct_) {}
-  
+
 public:
   otf_ctrie snapshot()
   {
     return ct.snapshot();
   }
-  
+
   list<void*> ct_callback()
   {
     using root_type = kl_ctrie::inode_or_rdcss<ctrie_string,
-						   int,
-						   local_hash<ctrie_string>,
-						   otf_ctrie_allocator,
-						   otf_ctrie_write_barrier>*;
-	
+					       int,
+					       local_hash<ctrie_string>,
+					       otf_ctrie_allocator,
+					       otf_ctrie_write_barrier>*;
+
     otf_ctrie_write_barrier<std::atomic<root_type>>& rt =
       *reinterpret_cast<otf_ctrie_write_barrier<std::atomic<root_type>>*>(&ct);
-	
+
     auto item = rt.load(std::memory_order_relaxed);
     return list<void*>({ item->derived_ptr() });
   }
-  
+
   otf_ctrie()
   {
     mt()->set_root_callback([this]() {
 	return this->ct_callback();
       });
   }
-  
+
   inline void insert(ctrie_string k, int v)
   {
     poll_for_sync();
@@ -541,13 +543,13 @@ const std::function<list<void*>(void*)> otf_ctrie_tracer::tracer_table[] = {
   trace_rdcss_desc
 };
 
-const std::function<void(void*)> otf_ctrie::otf_ctrie_policy::destructor_table[] = {
+const std::function<void(void*)> otf_ctrie_policy::destructor_table[] = {
   destroy_type<inode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,
   destroy_type<cnode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,
   destroy_type<snode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,
   destroy_type<tnode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,
   destroy_type<lnode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,
-  destroy_type<failure<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,  
+  destroy_type<failure<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>,
   destroy_vector,
   destroy_vector,
   destroy_type<plist_node<snode<ctrie_string, int, local_hash<ctrie_string>, otf_ctrie_allocator, otf_ctrie_write_barrier>>>,

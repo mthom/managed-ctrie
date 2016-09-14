@@ -25,6 +25,7 @@ link_directories(${GTEST_LIB_DIR}
 		 /usr/lib)
 
 set(OTF_CTRIE_SOURCE
+    on-the-fly-gc/atomic_list.cpp
     on-the-fly-gc/mutator.cpp
     test-ctrie.cpp
     ${GTEST_SRC_DIR}/src/gtest-all.cc)

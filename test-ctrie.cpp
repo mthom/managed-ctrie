@@ -215,31 +215,8 @@ int main(int argc, char** argv)
 
   ::testing::InitGoogleTest(&argc, argv);
 
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-  RUN_ALL_TESTS();
-
-  RUN_ALL_TESTS();
+  for(int i = 0; i < 23; ++i)
+    RUN_ALL_TESTS();
 
   auto result = RUN_ALL_TESTS();
 

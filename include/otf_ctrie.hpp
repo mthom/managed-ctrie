@@ -467,7 +467,7 @@ std::unique_ptr<gc> gc::collector;
 
 class otf_ctrie
 {
-public:
+private:
   inline void poll_for_sync()
   {
     mt()->poll_for_sync();
@@ -480,10 +480,9 @@ public:
 			   otf_ctrie_write_barrier>;
 
   inst_ctrie ct;
-
+  
   otf_ctrie(inst_ctrie ct_) : ct(ct_) {}
-
-public:
+public:  
   otf_ctrie snapshot()
   {
     return ct.snapshot();
@@ -504,7 +503,7 @@ public:
     return list<void*>({ item->derived_ptr() });
   }
 
-  otf_ctrie()
+  otf_ctrie() : ct(inst_ctrie())
   {
     mt()->set_root_callback([this]() {
 	return this->ct_callback();

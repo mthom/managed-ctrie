@@ -74,8 +74,8 @@ class string_allocator
     using namespace impl_details;
 
     underlying_header_t h =
-      (n << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::SV_t);
-
+      (n << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::SV_t);    
+    
     void* ptr = mt()->allocate(n * sizeof(value_type), h, 0);
 
     return reinterpret_cast<value_type*>(ptr);
@@ -85,7 +85,6 @@ class string_allocator
 };
 
 using ctrie_string = ref_string<string_allocator>;
-
 
 template <typename T>
 class otf_ctrie_allocator
@@ -123,8 +122,8 @@ class branch_vector_allocator<otf_ctrie_write_barrier<T>>
 
   value_type* allocate(std::size_t sz)
   {
-    using namespace impl_details;
-
+    using namespace impl_details;    
+    
     underlying_header_t h =
       (sz << tag_bits) | static_cast<underlying_header_t>(ctrie_internal_types::BV_t);
     void* ptr = mt()->allocate(sz * sizeof(value_type), h, 0);
@@ -145,8 +144,6 @@ private:
     t_ptr->~T();
   }
 
-  static void destroy_nothing(void*) {}
-    
   static void destroy_vector(void*)
   {}
     

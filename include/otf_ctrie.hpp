@@ -42,7 +42,8 @@ class otf_ctrie_tracer;
 
 inline std::unique_ptr<typename gc::registered_mutator>& mt()
 {
-  static thread_local std::unique_ptr<gc::registered_mutator> mt = gc::get_mutator();
+  static thread_local std::unique_ptr<gc::registered_mutator> mt =
+    gc::create_mutator();
   return mt;
 }
 

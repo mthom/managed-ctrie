@@ -215,10 +215,8 @@ int main(int argc, char** argv)
 
   ::testing::InitGoogleTest(&argc, argv);
 
-  for(int i = 0; i < 23; ++i)
+  for(int i = 0; i < 32; ++i)
     RUN_ALL_TESTS();
-
-  auto result = RUN_ALL_TESTS();
 
   mt().reset();
    
@@ -226,5 +224,5 @@ int main(int argc, char** argv)
   collector_thread.get();
   gc::collector->template destroy<otf_ctrie_policy>();
   
-  return result;
+  return 0;
 }
